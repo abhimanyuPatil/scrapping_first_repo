@@ -1,80 +1,170 @@
-# Comet Men's Sneakers Scraper
+# Web Scraping Practice
 
-A Python program that uses [Playwright](https://playwright.dev/python/) to drive a
-headless Chromium browser, parse the product cards rendered on
-[wearcomet.com](https://www.wearcomet.com), and export men's sneakers to a CSV file.
+A collection of Python web scrapers demonstrating different scraping techniques and patterns. All scrapers target practice sites from [scrapethissite.com](https://www.scrapethissite.com) and one production site ([wearcomet.com](https://www.wearcomet.com)).
 
-## How it works
+---
 
-The collection page uses infinite scroll on the client, but Shopify also renders
-the same collection server-side at `?page=N`. The scraper walks those pages, waits
-for the product cards to render, then parses each `.card-wrapper` card out of the
-live DOM (title, price, compare-at price, badge, sold-out state, image, URL). It
-stops when a page returns no new products.
+## 📚 What's inside
 
-## Setup & usage (uv — recommended)
+| Scraper | Technique | Description |
+|---------|-----------|-------------|
+| `scrape_hockey_teams.py` | Static HTML + pagination | NHL team stats with dynamic page count discovery |
+| `scrape_hockey_teams_senior.py` | Production patterns | Senior-level implementation with validation, deduplication, QA checks |
+| `scrape_movies.py` | AJAX / JSON API | Oscar-winning films from a JavaScript-rendered page |
+| `scrape_turtles.py` | Nested iframes | Turtle families from content loaded in frames |
+| `scrape_comet.py` | Browser automation | Men's sneakers from a Shopify store using Playwright |
 
-The script declares its own dependencies inline (PEP 723), so `uv` builds the
-environment on its own. No venv or `pip install` is needed.
+All scrapers (except `scrape_comet.py`) use the `common/` module for shared utilities (HTTP retry, logging, atomic saves).
+
+---
+
+## 🚀 Quick start
+
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management. All commands use `uv run` — no virtual environment setup needed.
+
+### Run a scraper
 
 ```bash
-# One-time: download the Chromium browser Playwright drives
-uv run --with playwright==1.64.1 playwright install chromium
+# Hockey teams (static HTML, pagination)
+uv run scrape_hockey_teams.py
 
-uv run scrape_comet.py                       # -> output/men_sneakers.csv
-uv run scrape_comet.py --headed              # watch the browser
-uv run scrape_comet.py --out output/mens.csv
+# Movies (AJAX/JSON endpoint)
+uv run scrape_movies.py
+
+# Turtles (nested iframes)
+uv run scrape_turtles.py
+
+# Senior-level hockey scraper (all production patterns)
+uv run scrape_hockey_teams_senior.py
+
+# Comet sneakers (browser automation with Playwright)
+# One-time setup: install Chromium for Playwright
+uv run --with playwright==1.64.1 playwright install chromium
+# Then run the scraper
+uv run scrape_comet.py
+uv run scrape_comet.py --headed              # watch the browser work
 uv run scrape_comet.py --collection women-sneakers --out output/women_sneakers.csv
 ```
 
-## Setup (pip / venv alternative)
+### Output
+
+All scrapers save results to the `output/` directory as CSV files.
+
+---
+
+## 📖 Learning progression
+
+The scrapers are ordered by complexity:
+
+1. **`scrape_hockey_teams.py`** — Start here. Static HTML with `requests` + `BeautifulSoup`. Covers pagination, retry logic, and basic parsing.
+
+2. **`scrape_movies.py`** — AJAX scraping. Covers finding hidden API endpoints, handling JSON responses, and dealing with missing fields.
+
+3. **`scrape_turtles.py`** — Iframe scraping. Covers nested frames and detail page navigation.
+
+4. **`scrape_hockey_teams_senior.py`** — Production patterns. Covers schema validation, deduplication, cross-field checks, quality assertions, and atomic writes.
+
+5. **`scrape_comet.py`** — Browser automation. Uses Playwright when JavaScript is required. Covers waiting for dynamic content, infinite scroll handling, and production Shopify scraping.
+
+---
+
+## 🛠️ Common utilities (`common/`)
+
+Shared modules extracted from the scrapers to avoid duplication:
+
+- **`config.py`** — Constants (headers, retries, delays)
+- **`logging_utils.py`** — Structured JSON logging
+- **`http.py`** — HTTP with exponential backoff retry
+- **`storage.py`** — Atomic CSV/JSON writes
+
+See [`common/README.md`](common/README.md) for full documentation and examples.
+
+---
+
+## 📋 Requirements
+
+- Python 3.9+
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- Dependencies are auto-managed by `uv run` or listed in `requirements.txt`
+
+### Install uv (if not already installed)
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Download the Chromium browser Playwright drives (one time):
-python -m playwright install chromium
+# Or with pip
+pip install uv
 ```
 
-## Usage
+---
+
+## 🎯 Senior-level patterns demonstrated
+
+`scrape_hockey_teams_senior.py` shows production-ready patterns:
+
+- **Dynamic pagination** — reads page count from HTML instead of hardcoding
+- **Schema validation** — enforces field types and cross-field checks
+- **Deduplication** — composite key `(name, year)` prevents duplicate rows
+- **Quality checks** — dataset-level assertions before writing
+- **Atomic writes** — write-then-rename prevents corruption on crash
+- **Structured logging** — JSON logs queryable by tools like `jq`, CloudWatch
+- **Exponential backoff** — polite retry with increasing delays
+
+---
+
+## 🗂️ Output files
+
+All scrapers write to `output/`:
+
+| File | Columns | Rows (approx) |
+|------|---------|---------------|
+| `hockey_teams.csv` | name, year, wins, losses, ot_losses, win_pct, gf, ga, diff | ~582 |
+| `movies.csv` | title, year, awards, nominations, best_picture | ~87 |
+| `turtles.csv` | title, common_name, discovered_year, discovered_by | 14 |
+| `men_sneakers.csv` | title, subtitle, price, compare_at_price, currency, badge, sold_out, image, url, page | varies |
+
+---
+
+## 🧪 Running tests
 
 ```bash
-# Default: scrape men's sneakers -> output/men_sneakers.csv
-python3 scrape_comet.py
+# Run all tests
+uv run pytest
 
-# Watch the browser work:
-python3 scrape_comet.py --headed
+# Run with coverage
+uv run pytest --cov=common --cov-report=term-missing
 
-# Custom output path:
-python3 scrape_comet.py --out output/mens.csv
-
-# Scrape a different collection (same site/theme), e.g. women's:
-python3 scrape_comet.py --collection women-sneakers --out output/women_sneakers.csv
+# Run specific test file
+uv run pytest tests/test_parse_schema.py
 ```
 
-## Output
+---
 
-`output/men_sneakers.csv` with columns:
+## 📝 Notes
 
-| column             | description                                   |
-| ------------------ | --------------------------------------------- |
-| `title`            | product name                                  |
-| `subtitle`         | secondary caption/colour, if present          |
-| `price`            | current price (numeric)                       |
-| `compare_at_price` | original price when discounted, else empty    |
-| `currency`         | currency symbol parsed from the price (e.g. ₹)|
-| `badge`            | card badge text (New In, Restocked, ...)      |
-| `sold_out`         | `yes` / `no`                                  |
-| `image`            | primary product image URL                     |
-| `url`              | product page URL                              |
-| `page`             | collection page the product was found on      |
+- All scrapers respect `robots.txt`
+- Be considerate: scrapers include delays between requests (`DELAY_SECONDS = 1.0`)
+- `scrape_comet.py` targets a real production site — use sparingly
+- Practice sites are intentionally designed for scraping practice
+- JSON logs go to `stderr`, structured output to `stdout` or files
 
-## Notes
+---
 
-- Selectors target Shopify's Dawn-style theme (`.card-wrapper`, `.card__heading`,
-  `.price-item`). If Comet changes its theme, update `EXTRACT_JS` in
-  `scrape_comet.py`.
-- Be a considerate scraper: this fetches a handful of pages sequentially. Avoid
-  running it in a tight loop.
+## 🤝 Contributing
+
+This is a learning project. Feel free to:
+- Add new scrapers for different techniques
+- Improve error handling or parsing logic
+- Extract more patterns into `common/`
+- Add tests for parsing functions
+
+---
+
+## 📚 Resources
+
+- [Scrape This Site](https://www.scrapethissite.com) — practice scraping sandbox
+- [Beautiful Soup docs](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
+- [Requests docs](https://requests.readthedocs.io/)
+- [Playwright Python docs](https://playwright.dev/python/)
+- [uv docs](https://docs.astral.sh/uv/)

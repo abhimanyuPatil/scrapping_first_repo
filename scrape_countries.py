@@ -1,17 +1,20 @@
+from __future__ import annotations
+
 import json
 import re
 import unicodedata
 from collections import Counter
+from pathlib import Path
 from typing import Optional
 
 from bs4 import BeautifulSoup
 
 from common import create_session, fetch_with_retry, setup_logger
+from common import save_to_csv_atomic 
 
 URL = "https://www.scrapethissite.com/pages/simple/"
 MIN_EXPECTED = 200
 MAX_EXPECTED = 300
-
 
 log = setup_logger("countries")
 session = create_session()
@@ -52,18 +55,6 @@ def to_float(s: str) -> Optional[float]:
         return float(s)
     except ValueError:
         return None
-
-
-# ---------- fetch ----------
-
-def fetch_html(url: str, retries: int = 3) -> str:
-    """Fetch a page, retrying transient failures. Returns '' on failure."""
-    try:
-        html = fetch_with_retry(session=session,url=url,timeout=30,log=log)
-        return html
-    except RuntimeError as ex:
-        log.error("Could not fetch page", extra={"error": str(ex)})
-        return ""
 
 
 # ---------- parse ----------
@@ -135,9 +126,10 @@ def validate(data: list[dict]) -> list[str]:
 
 def main() -> int:
     try:
-        html = fetch_with_retry(session=session,url=URL,timeout=30,log=log)
+        html = fetch_with_retry(session=session, url=URL, timeout=30, log=log)
     except RuntimeError as ex:
         log.error("Could not fetch page", extra={"error": str(ex)})
+        return 1
 
     if not html:
         log.error("Empty response; aborting")
@@ -145,7 +137,7 @@ def main() -> int:
 
     data, failed = parse(html)
     if failed:
-        log.warning("%d row(s) failed to parse: %s", len(failed), failed)
+        log.warning("%d row(s) failed to parse", len(failed), extra={"failed": failed})
 
     problems = validate(data)
     if problems:
@@ -153,8 +145,17 @@ def main() -> int:
             log.error(p)
         return 1
 
-    log.info("Parsed %d countries (%d failed)", len(data), len(failed))
+    log.info("Parsed countries", extra={"count": len(data), "failed": len(failed)})
+    
     print(json.dumps(data, indent=2, ensure_ascii=False))
+    
+    save_to_csv_atomic(
+        records=data,
+        path=Path("output/countries.csv"),
+        fieldnames=["name", "capital", "population", "area"],
+        log=log,
+    )
+    
     return 0
 
 

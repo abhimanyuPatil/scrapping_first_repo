@@ -1,33 +1,20 @@
 import json
-import logging
 import re
-import sys
 import unicodedata
 from collections import Counter
 from typing import Optional
 
-import requests
 from bs4 import BeautifulSoup
 
+from common import create_session, fetch_with_retry, setup_logger
+
 URL = "https://www.scrapethissite.com/pages/simple/"
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0 Safari/537.36"
-    )
-}
 MIN_EXPECTED = 200
 MAX_EXPECTED = 300
 
-# Logs go to stderr so stdout stays clean JSON.
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s: %(message)s",
-    stream=sys.stderr,
-)
-log = logging.getLogger("scrape_countries")
 
+log = setup_logger("countries")
+session = create_session()
 
 # ---------- cleaning helpers ----------
 
@@ -71,15 +58,12 @@ def to_float(s: str) -> Optional[float]:
 
 def fetch_html(url: str, retries: int = 3) -> str:
     """Fetch a page, retrying transient failures. Returns '' on failure."""
-    for attempt in range(1, retries + 1):
-        try:
-            response = requests.get(url, headers=HEADERS, timeout=30)
-            response.raise_for_status()
-            return response.text
-        except requests.RequestException as exc:
-            log.warning("Fetch attempt %d/%d failed: %s", attempt, retries, exc)
-    log.error("Giving up fetching %s", url)
-    return ""
+    try:
+        html = fetch_with_retry(session=session,url=url,timeout=30,log=log)
+        return html
+    except RuntimeError as ex:
+        log.error("Could not fetch page", extra={"error": str(ex)})
+        return ""
 
 
 # ---------- parse ----------
@@ -150,7 +134,11 @@ def validate(data: list[dict]) -> list[str]:
 # ---------- main ----------
 
 def main() -> int:
-    html = fetch_html(URL)
+    try:
+        html = fetch_with_retry(session=session,url=URL,timeout=30,log=log)
+    except RuntimeError as ex:
+        log.error("Could not fetch page", extra={"error": str(ex)})
+
     if not html:
         log.error("Empty response; aborting")
         return 1

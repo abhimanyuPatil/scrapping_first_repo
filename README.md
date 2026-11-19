@@ -168,3 +168,34 @@ This is a learning project. Feel free to:
 - [Requests docs](https://requests.readthedocs.io/)
 - [Playwright Python docs](https://playwright.dev/python/)
 - [uv docs](https://docs.astral.sh/uv/)
+
+## CSV → Parquet → Cloud Storage → BigQuery (local)
+
+Runs against [localgcp](https://localgcp.com/), no real GCP account needed.
+
+```bash
+localgcp up --services=bigquery        # BigQuery emulator needs Docker
+eval $(localgcp env)                   # sets STORAGE_EMULATOR_HOST
+
+python scrape_hockey_teams_senior.py   # 1. writes output/hockey_teams.csv
+python build_parquet.py                # 2. CSV -> output/hockey_teams.parquet (x200 rows)
+python upload_to_gcs.py                # 3. file -> gs://comet-learning/hockey/hockey_teams.parquet
+python load_to_bigquery.py             # 4. table local-project.hockey.hockey_teams
+```
+
+**One command:** `python run_pipeline.py` runs all four steps and stops at the first
+failure (the exit code is the failed step's, so schedulers can detect it).
+Options: `--skip-scrape`, `--copies N`, `--mode insert|uri`, `--step-timeout SECONDS`
+(default 900), `--preflight-timeout SECONDS` (default 60), `--skip-preflight`.
+Before any step it sends a real request to Cloud Storage and BigQuery and exits with code 2 if either is not healthy.
+
+Query it: `SELECT year, AVG(win_pct) FROM hockey.hockey_teams GROUP BY year`
+(use unquoted `dataset.table` names; the emulator cannot resolve backticked full names).
+
+Settings come from environment variables (defaults in `common/gcp_local.py`):
+`GCP_PROJECT_ID`, `GCS_BUCKET`, `GCS_OBJECT`, `BQ_DATASET`, `BQ_TABLE`, `BIGQUERY_EMULATOR_HOST`.
+
+LocalBQ does not implement BigQuery load jobs or streaming inserts, so
+`load_to_bigquery.py` defaults to `--mode insert` (reads the Parquet file from
+Cloud Storage and inserts with SQL). On real GCP use `--mode uri`, which lets
+BigQuery read `gs://...` directly.

@@ -2,3 +2,7 @@ playwright==1.64.1
 beautifulsoup4==4.15.0
 requests==2.34.2
 urllib3==2.8.0
+pandas==3.1.1
+pyarrow==26.0.1
+google-cloud-storage==3.17.1
+google-cloud-bigquery==3.47.0
